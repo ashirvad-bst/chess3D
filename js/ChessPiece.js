@@ -737,8 +737,8 @@ class ChessPiece {
                     child.userData.originalY = child.position.y;
                 }
                 
-                // Apply green emissive glow instead of red
-                child.material.emissive = new THREE.Color(0x00cc00); // Dark green to match the capture highlight on board
+                // Keep original piece color, just increase emissive intensity for highlight
+                // Don't change the material color to green
                 child.material.emissiveIntensity = 1.2;
                 
                 // Add pulse animation to make it more noticeable
@@ -771,9 +771,6 @@ class ChessPiece {
                         yoyo: true,
                         ease: "sine.inOut"
                     });
-                    
-                    // Add special target ring effect
-                    //this.createTargetRing();
                 }
             }
         });
@@ -790,7 +787,7 @@ class ChessPiece {
         // Create a ring geometry
         const ringGeometry = new THREE.RingGeometry(0.6, 0.7, 32);
         const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ff00, // Green ring instead of red
+            color: this.color === 'white' ? 0xffcc00 : 0xff0000, // Yellow for white pieces, red for black
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.7
