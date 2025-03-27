@@ -603,14 +603,14 @@ class Board {
             emissiveIntensity: 0.5
         });
         
-        // Highlight material for captures - also changed to green
+        // Highlight material for captures - changed to light red
         this.captureHighlightMaterial = new THREE.MeshStandardMaterial({
-            color: 0x00cc00, // Dark green base for capture squares
+            color: 0xd4837e, // Light red base for capture squares
             metalness: 0.2,
             roughness: 0.5,
             transparent: true,
             opacity: 0.8,
-            emissive: 0x00aa00, // Green glow
+            emissive: 0xff0000, // Red glow
             emissiveIntensity: 0.6
         });
 
