@@ -773,7 +773,7 @@ class ChessPiece {
                     });
                     
                     // Add special target ring effect
-                    this.createTargetRing();
+                    //this.createTargetRing();
                 }
             }
         });

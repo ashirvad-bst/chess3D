@@ -357,7 +357,7 @@ class Board {
     // Highlight valid moves for the selected piece
     highlightValidMoves(piece) {
         // Clear any existing highlights
-        this.resetHighlights(); // Changed from clearHighlights to resetHighlights
+        this.resetHighlights();
         
         if (!piece) return;
         
@@ -368,7 +368,6 @@ class Board {
                 
                 if (piece.isValidMove(newPos, this)) {
                     const targetPiece = this.getPieceAt(newPos);
-                    const squareIndex = y * 8 + x;
                     
                     if (targetPiece) {
                         // Highlight the piece that can be captured
@@ -376,18 +375,19 @@ class Board {
                         
                         // Also highlight the square beneath the target piece 
                         // with the captureHighlightMaterial
-                        if (this.squares[squareIndex]) {
-                            const square = this.squares[squareIndex];
-                            square.userData.originalMaterial = square.material;
-                            square.material = this.captureHighlightMaterial;
+                        if (this.squares[x] && this.squares[x][y]) {
+                            const square = this.squares[x][y];
+                            // Store original material before replacing
+                            square.mesh.userData.originalMaterial = square.mesh.material.clone();
+                            square.mesh.material = this.captureHighlightMaterial;
                             
                             // Add a subtle animation to make the highlight more noticeable
-                            if (!square.userData.pulseAnimation) {
-                                square.userData.pulseAnimation = true;
-                                square.userData.originalY = square.position.y;
+                            if (!square.mesh.userData.pulseAnimation) {
+                                square.mesh.userData.pulseAnimation = true;
+                                square.mesh.userData.originalY = square.mesh.position.y;
                                 
                                 // Create a subtle hover animation on the square
-                                gsap.to(square.position, {
+                                gsap.to(square.mesh.position, {
                                     y: 0.05, // Move slightly above the board
                                     duration: 0.8,
                                     repeat: -1,
@@ -398,17 +398,18 @@ class Board {
                         }
                     } else {
                         // Highlight empty square as valid move
-                        if (this.squares[squareIndex]) {
-                            const square = this.squares[squareIndex];
-                            square.userData.originalMaterial = square.material;
-                            square.material = this.highlightMaterial;
+                        if (this.squares[x] && this.squares[x][y]) {
+                            const square = this.squares[x][y];
+                            // Store original material before replacing
+                            square.mesh.userData.originalMaterial = square.mesh.material.clone();
+                            square.mesh.material = this.highlightMaterial;
                             
                             // Add subtle pulse animation to valid move squares
-                            if (!square.userData.pulseAnimation) {
-                                square.userData.pulseAnimation = true;
+                            if (!square.mesh.userData.pulseAnimation) {
+                                square.mesh.userData.pulseAnimation = true;
                                 
                                 // Create a subtle opacity pulse for empty valid move squares
-                                gsap.to(square.material, {
+                                gsap.to(square.mesh.material, {
                                     opacity: 0.6,
                                     duration: 0.8,
                                     repeat: -1,
@@ -429,18 +430,48 @@ class Board {
             for (let y = 0; y < 8; y++) {
                 const square = this.squares[x][y];
                 
-                // Reset to original color if stored
-                if (square.mesh.userData.originalColor) {
-                    square.mesh.material.color.copy(square.mesh.userData.originalColor);
+                // Reset to original material if stored
+                if (square.mesh.userData.originalMaterial) {
+                    // Dispose the current material to prevent memory leaks
+                    if (square.mesh.material && square.mesh.material !== square.mesh.userData.originalMaterial) {
+                        square.mesh.material.dispose();
+                    }
+                    
+                    // Restore the original material
+                    square.mesh.material = square.mesh.userData.originalMaterial;
+                    square.mesh.userData.originalMaterial = null;
                 } else {
-                    // Otherwise use the default light/dark colors
-                    const color = square.isLight ? 0xf5f5f5 : 0x222222;  // Updated much darker black square color
+                    // Otherwise use the default light/dark colors based on square color
+                    const color = square.isLight ? 0xf5f5f5 : 0x222222;
                     square.mesh.material.color.set(color);
+                    
+                    // Reset material properties to default state
+                    square.mesh.material.emissive.set(0x000000);
+                    square.mesh.material.emissiveIntensity = 0;
+                    square.mesh.material.opacity = 1.0;
+                    square.mesh.material.transparent = false;
                 }
                 
-                // Reset emissive properties
-                square.mesh.material.emissive.set(0x000000);
-                square.mesh.material.emissiveIntensity = 0;
+                // Stop any animations
+                if (square.mesh.userData.pulseAnimation) {
+                    gsap.killTweensOf(square.mesh.material);
+                    gsap.killTweensOf(square.mesh.position);
+                    
+                    // Reset position if it was animated
+                    if (square.mesh.userData.originalY !== undefined) {
+                        // Use GSAP to animate back to original position
+                        gsap.to(square.mesh.position, {
+                            y: square.mesh.userData.originalY,
+                            duration: 0.3,
+                            ease: "power2.out"
+                        });
+                        
+                        // Clear the stored original Y position
+                        square.mesh.userData.originalY = undefined;
+                    }
+                    
+                    square.mesh.userData.pulseAnimation = false;
+                }
             }
         }
     }
@@ -475,6 +506,13 @@ class Board {
                 game.selectedPiece.unhighlight();
                 game.selectedPiece = null;
                 this.resetHighlights();
+                
+                // Clear capturable highlights from all pieces
+                this.pieces.forEach(piece => {
+                    if (piece.canBeCaptured) {
+                        piece.unhighlight();
+                    }
+                });
                 return;
             }
             
@@ -499,6 +537,13 @@ class Board {
                 game.selectedPiece = null;
                 this.resetHighlights();
                 
+                // Clear capturable highlights from all pieces
+                this.pieces.forEach(piece => {
+                    if (piece.canBeCaptured) {
+                        piece.unhighlight();
+                    }
+                });
+                
                 // Switch turns
                 game.currentPlayer = game.currentPlayer === 'white' ? 'black' : 'white';
                 game.updateStatus();
@@ -513,6 +558,13 @@ class Board {
             if (game.selectedPiece) {
                 game.selectedPiece.unhighlight();
                 this.resetHighlights();
+                
+                // Clear capturable highlights from all pieces
+                this.pieces.forEach(piece => {
+                    if (piece.canBeCaptured) {
+                        piece.unhighlight();
+                    }
+                });
             }
             
             // Select the new piece
@@ -594,16 +646,8 @@ class Board {
 
     // Remove all highlights from the board
     removeHighlights() {
-        // Reset square highlights
-        for (let x = 0; x < 8; x++) {
-            for (let y = 0; y < 8; y++) {
-                const square = this.squares[x][y];
-                if (square && square.mesh) {
-                    // Reset to original material based on square color
-                    square.mesh.material = square.isLight ? this.whiteMaterial : this.blackMaterial;
-                }
-            }
-        }
+        // Just call resetHighlights to ensure consistent behavior
+        this.resetHighlights();
         
         // Reset any highlighted pieces (capturable pieces)
         this.pieces.forEach(piece => {
