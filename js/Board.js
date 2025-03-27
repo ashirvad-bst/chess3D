@@ -5,6 +5,7 @@ class Board {
         this.squares = [];  // 2D array of board squares
         this.pieces = [];   // Array of all chess pieces
         this.validMoveSquares = []; // Track valid move positions
+        this.pathCubes = []; // Track path highlight meshes
         
         // Create materials first
         this.createMaterials();
@@ -446,9 +447,20 @@ class Board {
     
     // Move a piece to a new position
     movePiece(piece, newPosition) {
+        // Highlight the path before moving
+        this.highlightPath(piece.position, newPosition);
+        
+        // Update the piece position
         piece.position = { ...newPosition };
         piece.hasMoved = true;
+        
+        // Animate the movement
         piece.updatePosition();
+        
+        // Clear the path highlight after a delay
+        setTimeout(() => {
+            this.clearPathHighlights();
+        }, 2000);
     }
     
     // Handle square click event
@@ -549,6 +561,35 @@ class Board {
             emissive: 0x00aa00, // Green glow
             emissiveIntensity: 0.6
         });
+
+        // Create path highlight materials - from dark to light green
+        this.pathMaterials = [];
+        const pathSteps = 10;
+        for (let i = 0; i < pathSteps; i++) {
+            // Calculate gradient color from dark green to light green
+            const ratio = i / (pathSteps - 1);
+            
+            // Improved color transition from dark to light green
+            const darkGreen = { r: 0, g: 60, b: 0 };    // Very dark green
+            const lightGreen = { r: 100, g: 255, b: 100 }; // Light green
+            
+            // Interpolate between dark and light green
+            const r = Math.floor(darkGreen.r + ratio * (lightGreen.r - darkGreen.r));
+            const g = Math.floor(darkGreen.g + ratio * (lightGreen.g - darkGreen.g));
+            const b = Math.floor(darkGreen.b + ratio * (lightGreen.b - darkGreen.b));
+            
+            const color = (r << 16) | (g << 8) | b;
+            
+            this.pathMaterials.push(new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.3,
+                roughness: 0.4,
+                transparent: true,
+                opacity: 0.7 + (ratio * 0.3),
+                emissive: color,
+                emissiveIntensity: 0.3 + (ratio * 0.4)
+            }));
+        }
     }
 
     // Remove all highlights from the board
@@ -573,5 +614,218 @@ class Board {
         
         // Clear valid move tracking
         this.validMoveSquares = [];
+
+        // Remove path highlight cubes
+        this.clearPathHighlights();
+    }
+
+    // Clear the path highlights
+    clearPathHighlights() {
+        while (this.pathCubes.length > 0) {
+            const cube = this.pathCubes.pop();
+            this.boardGroup.remove(cube);
+            if (cube.geometry) cube.geometry.dispose();
+            if (cube.material) cube.material.dispose();
+        }
+    }
+
+    // Calculate a path between two points on the board
+    calculatePath(startPos, endPos) {
+        const path = [];
+        const dx = endPos.x - startPos.x;
+        const dy = endPos.y - startPos.y;
+        
+        // Determine the number of steps based on the distance
+        const steps = Math.max(Math.abs(dx), Math.abs(dy));
+        
+        if (steps === 0) return path; // No path if same position
+        
+        // Calculate intermediate points along the path
+        for (let i = 1; i <= steps; i++) {
+            const ratio = i / steps;
+            const x = Math.round(startPos.x + dx * ratio);
+            const y = Math.round(startPos.y + dy * ratio);
+            
+            // Add point to path if not the start or end positions
+            if (x !== startPos.x || y !== startPos.y) {
+                if (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                    path.push({ x, y });
+                }
+            }
+        }
+        
+        return path;
+    }
+
+    // Highlight the path from start to end position
+    highlightPath(startPos, endPos) {
+        // Clear any existing path highlights
+        this.clearPathHighlights();
+        
+        // Calculate the path
+        const path = this.calculatePath(startPos, endPos);
+        
+        // No need to highlight if no path
+        if (path.length === 0) return;
+        
+        // Create highlight objects along the path
+        path.forEach((pos, index) => {
+            // Calculate material index based on position in path
+            // This ensures we use the full range of the gradient
+            const materialIndex = Math.floor((index / path.length) * (this.pathMaterials.length - 1));
+            const material = this.pathMaterials[materialIndex];
+            
+            // Create a more visually appealing path marker
+            const geometry = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
+            const cube = new THREE.Mesh(geometry, material);
+            
+            // Position the cube above the board square
+            cube.position.set(
+                pos.x - 3.5, 
+                0.05, // Just above the board
+                pos.y - 3.5
+            );
+            
+            // Add to scene and track
+            this.boardGroup.add(cube);
+            this.pathCubes.push(cube);
+            
+            // Add animation to make the highlight more noticeable
+            gsap.to(cube.position, {
+                y: 0.2 + (index * 0.03), // Higher for points farther along the path
+                duration: 0.5,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut",
+                delay: 0.05 * index // Staggered animation
+            });
+            
+            // Add scale animation to create a pulsing effect
+            gsap.to(cube.scale, {
+                x: 1.3,
+                z: 1.3,
+                duration: 0.7,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut",
+                delay: 0.05 * index // Staggered animation
+            });
+        });
+        
+        // Add a trail effect that connects the path
+        this.addPathTrail(startPos, path, endPos);
+    }
+    
+    // Add a connected trail along the path to create a more fluid visual
+    addPathTrail(startPos, path, endPos) {
+        const allPoints = [startPos, ...path, endPos];
+        
+        // Create a smooth curve connecting all points
+        const curvePoints = allPoints.map(p => new THREE.Vector3(p.x - 3.5, 0.05, p.y - 3.5));
+        const curve = new THREE.CatmullRomCurve3(curvePoints);
+        
+        // Create tube geometry along the curve
+        const tubeGeometry = new THREE.TubeGeometry(curve, allPoints.length * 3, 0.08, 8, false);
+        
+        // Create a gradient shader material for the trail
+        const vertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+        
+        const fragmentShader = `
+            uniform vec3 colorStart;
+            uniform vec3 colorEnd;
+            varying vec2 vUv;
+            
+            void main() {
+                // Linear interpolation between start and end colors based on UV
+                gl_FragColor = vec4(mix(colorStart, colorEnd, vUv.x), 0.5);
+            }
+        `;
+        
+        // Create shader material with dark to light green gradient
+        const trailMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                colorStart: { value: new THREE.Color(0x003300) }, // Dark green
+                colorEnd: { value: new THREE.Color(0x66ff66) }    // Light green
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide
+        });
+        
+        const tube = new THREE.Mesh(tubeGeometry, trailMaterial);
+        
+        this.boardGroup.add(tube);
+        this.pathCubes.push(tube);
+        
+        // Add subtle glow animation to the trail
+        gsap.to(tube.material, {
+            opacity: 0.3,
+            duration: 1.2,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut"
+        });
+        
+        // Add start and end markers with special effects
+        this.addPathEndpoints(startPos, endPos);
+    }
+    
+    // Add special markers at the start and end of the path
+    addPathEndpoints(startPos, endPos) {
+        // Start marker - dark green
+        const startGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const startMaterial = new THREE.MeshStandardMaterial({
+            color: 0x003300,
+            emissive: 0x002200,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        const startMarker = new THREE.Mesh(startGeometry, startMaterial);
+        startMarker.position.set(startPos.x - 3.5, 0.1, startPos.y - 3.5);
+        this.boardGroup.add(startMarker);
+        this.pathCubes.push(startMarker);
+        
+        // End marker - light green
+        const endGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const endMaterial = new THREE.MeshStandardMaterial({
+            color: 0x66ff66,
+            emissive: 0x33cc33,
+            emissiveIntensity: 0.7,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const endMarker = new THREE.Mesh(endGeometry, endMaterial);
+        endMarker.position.set(endPos.x - 3.5, 0.1, endPos.y - 3.5);
+        this.boardGroup.add(endMarker);
+        this.pathCubes.push(endMarker);
+        
+        // Add pulsing animation to both markers
+        gsap.to(startMarker.scale, {
+            x: 1.3, y: 1.3, z: 1.3,
+            duration: 0.8,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut"
+        });
+        
+        gsap.to(endMarker.scale, {
+            x: 1.3, y: 1.3, z: 1.3,
+            duration: 0.8,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut",
+            delay: 0.4
+        });
     }
 }
