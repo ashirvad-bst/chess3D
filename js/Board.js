@@ -296,35 +296,35 @@ class Board {
         
         // Create pawns
         for (let x = 0; x < 8; x++) {
-            this.addPiece('pawn', 'white', { x, y: 1 });
-            this.addPiece('pawn', 'black', { x, y: 6 });
+            this.addPiece('pawn', 'white', { x, y: 6 });  // White pawns on line 7 (index 6)
+            this.addPiece('pawn', 'black', { x, y: 1 });  // Black pawns on line 2 (index 1)
         }
         
         // Create rooks
-        this.addPiece('rook', 'white', { x: 0, y: 0 });
-        this.addPiece('rook', 'white', { x: 7, y: 0 });
-        this.addPiece('rook', 'black', { x: 0, y: 7 });
-        this.addPiece('rook', 'black', { x: 7, y: 7 });
+        this.addPiece('rook', 'white', { x: 0, y: 7 });  // White rooks on line 8 (index 7)
+        this.addPiece('rook', 'white', { x: 7, y: 7 });
+        this.addPiece('rook', 'black', { x: 0, y: 0 });  // Black rooks on line 1 (index 0)
+        this.addPiece('rook', 'black', { x: 7, y: 0 });
         
         // Create knights
-        this.addPiece('knight', 'white', { x: 1, y: 0 });
-        this.addPiece('knight', 'white', { x: 6, y: 0 });
-        this.addPiece('knight', 'black', { x: 1, y: 7 });
-        this.addPiece('knight', 'black', { x: 6, y: 7 });
+        this.addPiece('knight', 'white', { x: 1, y: 7 });  // White knights on line 8 (index 7)
+        this.addPiece('knight', 'white', { x: 6, y: 7 });
+        this.addPiece('knight', 'black', { x: 1, y: 0 });  // Black knights on line 1 (index 0)
+        this.addPiece('knight', 'black', { x: 6, y: 0 });
         
         // Create bishops
-        this.addPiece('bishop', 'white', { x: 2, y: 0 });
-        this.addPiece('bishop', 'white', { x: 5, y: 0 });
-        this.addPiece('bishop', 'black', { x: 2, y: 7 });
-        this.addPiece('bishop', 'black', { x: 5, y: 7 });
+        this.addPiece('bishop', 'white', { x: 2, y: 7 });  // White bishops on line 8 (index 7)
+        this.addPiece('bishop', 'white', { x: 5, y: 7 });
+        this.addPiece('bishop', 'black', { x: 2, y: 0 });  // Black bishops on line 1 (index 0)
+        this.addPiece('bishop', 'black', { x: 5, y: 0 });
         
         // Create queens
-        this.addPiece('queen', 'white', { x: 3, y: 0 });
-        this.addPiece('queen', 'black', { x: 3, y: 7 });
+        this.addPiece('queen', 'white', { x: 3, y: 7 });  // White queen on line 8 (index 7)
+        this.addPiece('queen', 'black', { x: 3, y: 0 });  // Black queen on line 1 (index 0)
         
         // Create kings
-        this.addPiece('king', 'white', { x: 4, y: 0 });
-        this.addPiece('king', 'black', { x: 4, y: 7 });
+        this.addPiece('king', 'white', { x: 4, y: 7 });  // White king on line 8 (index 7)
+        this.addPiece('king', 'black', { x: 4, y: 0 });  // Black king on line 1 (index 0)
     }
     
     // Add a new chess piece to the board
@@ -357,7 +357,7 @@ class Board {
     // Highlight valid moves for the selected piece
     highlightValidMoves(piece) {
         // Clear any existing highlights
-        this.clearHighlights();
+        this.resetHighlights(); // Changed from clearHighlights to resetHighlights
         
         if (!piece) return;
         
@@ -617,6 +617,11 @@ class Board {
 
         // Remove path highlight cubes
         this.clearPathHighlights();
+    }
+
+    // Add an alias for resetHighlights to maintain compatibility
+    clearHighlights() {
+        this.resetHighlights();
     }
 
     // Clear the path highlights

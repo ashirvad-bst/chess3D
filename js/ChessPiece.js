@@ -525,7 +525,9 @@ class ChessPiece {
         const dy = newPosition.y - this.position.y;
         
         // Direction depends on color
-        const direction = this.color === 'white' ? 1 : -1;
+        // White pawns move up the board (decreasing y: 7→0)
+        // Black pawns move down the board (increasing y: 0→7)
+        const direction = this.color === 'white' ? -1 : 1;
         
         // Target piece at new position
         const targetPiece = board.getPieceAt(newPosition);
