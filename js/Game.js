@@ -564,6 +564,7 @@ class Game {
         this.checkGameOver();
         
         // If it's computer's turn, trigger AI move after a short delay
+        // Only trigger computer move if game mode is computer
         if (this.gameMode === 'computer' && this.currentPlayer === this.computerColor && !this.gameOver) {
             this.isComputerThinking = true;
             statusElement.textContent = "Computer is thinking...";
@@ -693,7 +694,8 @@ class Game {
     
     // AI methods for computer opponent
     makeComputerMove() {
-        if (this.gameOver || this.currentPlayer !== this.computerColor) {
+        // Only proceed if we're in computer mode and it's computer's turn
+        if (this.gameOver || this.currentPlayer !== this.computerColor || this.gameMode !== 'computer') {
             this.isComputerThinking = false;
             return;
         }
