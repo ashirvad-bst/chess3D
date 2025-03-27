@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Chess Game</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Three.js core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Three.js extensions -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    
+    <!-- GSAP for animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+</head>
+<body>
+    <div id="game-selection" class="game-selection">
+        <div class="selection-container">
+            <h1>3D Chess Game</h1>
+            <p>Select a game mode to begin:</p>
+            <button id="play-friend" class="selection-button">Play with Friend</button>
+            <button id="play-computer" class="selection-button">Play with Computer</button>
+        </div>
+    </div>
+
+    <div id="game-container" class="game-container" style="display: none;">
+        <div id="chess-board"></div>
+        <div class="game-info">
+            <h1>3D Chess Game</h1>
+            <div id="game-mode-display">Playing with Friend</div>
+            <div id="status">White's turn</div>
+            <div id="captured-pieces">
+                <div id="white-captured"></div>
+                <div id="black-captured"></div>
+            </div>
+            <button id="reset-button">Reset Game</button>
+            <button id="back-to-menu">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Game scripts -->
+    <script src="js/ChessPiece.js"></script>
+    <script src="js/Board.js"></script>
+    <script src="js/Game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
