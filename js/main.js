@@ -102,9 +102,45 @@ function setupGameSelection() {
 function initGame(gameMode) {
     try {
         console.log(`Creating game instance with mode: ${gameMode}`);
+        
+        // If there's an existing game instance, clean it up properly
+        if (window.chessGame) {
+            console.log('Cleaning up previous game instance...');
+            window.chessGame.cleanupResources();
+            window.chessGame = null;
+        }
+        
+        // Clear the chess board container to prevent canvas stacking
+        const chessBoard = document.getElementById('chess-board');
+        if (chessBoard) {
+            chessBoard.innerHTML = '';
+        }
+        
+        // Reset status displays to prepare for new game
+        const statusElement = document.getElementById('status');
+        if (statusElement) {
+            statusElement.textContent = "White's turn";
+            statusElement.style.color = '';
+        }
+        
+        // Clear captured pieces display
+        const whiteCaptured = document.getElementById('white-captured');
+        const blackCaptured = document.getElementById('black-captured');
+        if (whiteCaptured) whiteCaptured.innerHTML = '';
+        if (blackCaptured) blackCaptured.innerHTML = '';
+        
         // Create the game instance with the selected game mode
-        window.chessGame = new Game(gameMode);
-        console.log('3D Chess Game initialized successfully!');
+        // Using a slight delay to ensure DOM and previous cleanup is complete
+        setTimeout(() => {
+            // Force complete garbage collection if possible
+            if (window.gc) window.gc();
+            
+            // Create a fresh game instance with the current mode
+            window.chessGame = new Game(gameMode);
+            console.log('3D Chess Game initialized successfully with mode:', gameMode);
+            
+            // The game constructor will handle updating the game mode display
+        }, 100);
     } catch (error) {
         console.error('Game initialization error:', error);
         showError('Error initializing the game: ' + error.message);

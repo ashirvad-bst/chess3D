@@ -23,6 +23,9 @@ class Game {
         this.animationFrameCount = 0;
         
         this.init();
+        
+        // Ensure game mode display is updated whenever a new game is created
+        this.updateGameModeDisplay();
     }
     
     init() {
@@ -578,8 +581,12 @@ class Game {
     updateGameModeDisplay() {
         const modeDisplay = document.getElementById('game-mode-display');
         if (modeDisplay) {
-            modeDisplay.textContent = this.gameMode === 'friend' ? 
-                'Playing with Friend' : 'Playing with Computer';
+            modeDisplay.textContent = this.gameMode === 'friend' 
+                ? 'Playing with a Friend' 
+                : 'Playing with Computer';
+            
+            // Add visual indication of game mode
+            modeDisplay.className = this.gameMode === 'friend' ? 'friend-mode' : 'computer-mode';
         }
     }
     
@@ -651,45 +658,147 @@ class Game {
         this.updateCapturedPieces();
     }
     
+    cleanupResources() {
+        console.log('Cleaning up game resources...');
+        
+        // Stop animation loop
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        
+        // Remove event listeners
+        if (this.renderer && this.renderer.domElement) {
+            this.renderer.domElement.removeEventListener('click', this.onMouseClick.bind(this));
+        }
+        window.removeEventListener('resize', this.onWindowResize.bind(this));
+        
+        // Clear all GSAP animations
+        if (window.gsap) {
+            gsap.killTweensOf([".board-square", ".chess-piece"]);
+        }
+        
+        // Clear board state
+        if (this.board) {
+            // Remove highlights and animations
+            this.board.resetHighlights();
+            this.board.clearPathHighlights();
+            
+            // Remove all pieces from the scene
+            if (this.board.pieces) {
+                for (const piece of this.board.pieces) {
+                    if (piece.mesh) {
+                        // Kill any animations on the piece
+                        if (window.gsap) gsap.killTweensOf(piece.mesh);
+                        // Remove from scene
+                        this.scene.remove(piece.mesh);
+                        // Dispose geometries and materials
+                        if (piece.mesh.geometry) piece.mesh.geometry.dispose();
+                        if (piece.mesh.material) {
+                            if (Array.isArray(piece.mesh.material)) {
+                                piece.mesh.material.forEach(m => m.dispose());
+                            } else {
+                                piece.mesh.material.dispose();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Remove board group from scene
+            if (this.board.boardGroup) {
+                this.scene.remove(this.board.boardGroup);
+            }
+        }
+        
+        // Dispose of geometries and materials
+        if (this.scene) {
+            while (this.scene.children.length > 0) {
+                const object = this.scene.children[0];
+                this.disposeObject(object);
+                this.scene.remove(object);
+            }
+        }
+        
+        // Dispose of renderer
+        if (this.renderer) {
+            this.renderer.dispose();
+            const chessBoard = document.getElementById('chess-board');
+            if (chessBoard && this.renderer.domElement && chessBoard.contains(this.renderer.domElement)) {
+                chessBoard.removeChild(this.renderer.domElement);
+            }
+        }
+        
+        // Reset game state
+        this.currentPlayer = 'white';
+        this.selectedPiece = null;
+        this.capturedPieces = [];
+        this.gameOver = false;
+        this.isComputerThinking = false;
+        
+        // Clear references
+        this.scene = null;
+        this.camera = null;
+        this.controls = null;
+        this.board = null;
+        this.renderer = null;
+        
+        console.log('Game resources cleaned up successfully');
+    }
+    
+    // Helper method to recursively dispose of 3D objects
+    disposeObject(object) {
+        if (!object) return;
+        
+        // Dispose all animations
+        if (window.gsap) gsap.killTweensOf(object);
+        
+        // Dispose geometry
+        if (object.geometry) object.geometry.dispose();
+        
+        // Dispose material(s)
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                object.material.forEach(material => {
+                    if (material.map) material.map.dispose();
+                    material.dispose();
+                });
+            } else {
+                if (object.material.map) object.material.map.dispose();
+                object.material.dispose();
+            }
+        }
+        
+        // Recursively dispose children
+        if (object.children && object.children.length > 0) {
+            // Create a copy of children array since we're modifying it during iteration
+            const children = [...object.children];
+            children.forEach(child => {
+                this.disposeObject(child);
+                object.remove(child);
+            });
+        }
+    }
+    
     backToMenu() {
+        console.log('Going back to menu...');
+        
         // Hide game container and show selection screen
         document.getElementById('game-container').style.display = 'none';
         document.getElementById('game-selection').style.display = 'flex';
         
         // Clean up resources
         this.cleanupResources();
-    }
-    
-    cleanupResources() {
-        // Stop animation loop
-        cancelAnimationFrame(this.animationFrameId);
         
-        // Remove event listeners
-        if (this.renderer && this.renderer.domElement) {
-            this.renderer.domElement.removeEventListener('click', this.onMouseClick);
-        }
-        window.removeEventListener('resize', this.onWindowResize);
-        
-        // Dispose of geometries and materials
-        if (this.scene) {
-            this.scene.traverse(object => {
-                if (object.geometry) {
-                    object.geometry.dispose();
-                }
-                if (object.material) {
-                    if (Array.isArray(object.material)) {
-                        object.material.forEach(material => material.dispose());
-                    } else {
-                        object.material.dispose();
-                    }
-                }
-            });
+        // Make sure the UI is reset for a new game
+        const modeDisplay = document.getElementById('game-mode-display');
+        if (modeDisplay) {
+            modeDisplay.textContent = 'Select a game mode';
+            modeDisplay.className = '';
         }
         
-        // Dispose of renderer
-        if (this.renderer) {
-            this.renderer.dispose();
-        }
+        // Remove the global reference to this game instance
+        window.chessGame = null;
     }
     
     // AI methods for computer opponent
