@@ -244,20 +244,6 @@ class Game {
         try {
             this.animationFrameCount++;
             
-            if (this.debugMode && this.animationFrameCount % 60 === 0) { // Log every 60 frames to avoid console spam
-                console.log(`Animation frame ${this.animationFrameCount}`);
-                console.log('Game instance exists:', !!this);
-                console.log('Scene exists:', !!this.scene);
-                console.log('Camera exists:', !!this.camera);
-                console.log('Renderer exists:', !!this.renderer);
-                console.log('Controls exists:', !!this.controls);
-                
-                if (this.controls) {
-                    console.log('Controls.update type:', typeof this.controls.update);
-                    console.log('Controls.target:', this.controls.target);
-                }
-            }
-            
             // Safety check for this reference
             if (!this || !this.scene || !this.camera || !this.renderer) {
                 console.error('Critical objects missing in animate:',

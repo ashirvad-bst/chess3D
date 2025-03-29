@@ -382,7 +382,6 @@ class Board {
                 
                 if (piece.isValidMove(newPos, this)) {
                     const targetPiece = this.getPieceAt(newPos);
-                    
                     if (targetPiece) {
                         // Highlight the piece that can be captured
                         targetPiece.highlightAsTarget();
@@ -431,6 +430,7 @@ class Board {
                                     ease: "sine.inOut"
                                 });
                             }
+                            this.highlightEnPassantSquare(newPos);
                         }
                     }
                 }
@@ -516,14 +516,12 @@ class Board {
             piece.movedTwoSquares = true;
             
             // Set the en passant position (where the capturing pawn would move to)
-            const direction = piece.color === 'white' ? -1 : 1; // Direction the pawn moved
+            // Fixed: Calculate the intermediate square between start and end position
+            const intermediateY = Math.floor((piece.position.y + newPosition.y) / 2);
             this.lastEnPassantPosition = {
                 x: newPosition.x,
-                y: piece.position.y + direction
+                y: intermediateY
             };
-            
-            // Highlight the en passant square in red
-            this.highlightEnPassantSquare();
         }
 
         // Check for en passant capture
@@ -569,9 +567,9 @@ class Board {
     }
     
     // Highlight the en passant square in red
-    highlightEnPassantSquare() {
+    highlightEnPassantSquare(newPosition) {
         if (!this.lastEnPassantPosition) return;
-        
+        if (!(newPosition && newPosition.x === this.lastEnPassantPosition.x && newPosition.y === this.lastEnPassantPosition.y)) return;
         const x = this.lastEnPassantPosition.x;
         const y = this.lastEnPassantPosition.y;
         
@@ -580,8 +578,6 @@ class Board {
             
             // Store the original material
             square.mesh.userData.originalEnPassantMaterial = square.mesh.material.clone();
-            
-            // Make sure we're using the en passant material (red) and not the highlight material (green)
             square.mesh.material = this.enPassantMaterial;
             
             // Store reference to this square
@@ -595,23 +591,34 @@ class Board {
                 yoyo: true,
                 ease: "sine.inOut"
             });
+            
+            // Log to confirm we're using the right material
+            console.log("En passant square highlighted with red material");
         }
     }
     
     // Clear the en passant highlight
     clearEnPassantHighlight() {
         if (this.enPassantSquare) {
+            // Stop any animations
+            gsap.killTweensOf(this.enPassantSquare.mesh.material);
+            
             // Restore the original material
             if (this.enPassantSquare.mesh.userData.originalEnPassantMaterial) {
-                // Stop any animations
-                gsap.killTweensOf(this.enPassantSquare.mesh.material);
-                
-                // Restore original material
                 this.enPassantSquare.mesh.material = this.enPassantSquare.mesh.userData.originalEnPassantMaterial;
                 this.enPassantSquare.mesh.userData.originalEnPassantMaterial = null;
+            } else {
+                // If original material not saved, create a new one based on square color
+                const isLight = this.enPassantSquare.isLight;
+                const color = isLight ? 0xf5f5f5 : 0x222222;
+                this.enPassantSquare.mesh.material = new THREE.MeshStandardMaterial({
+                    color: color,
+                    roughness: 0.5
+                });
             }
             
             this.enPassantSquare = null;
+            console.log("En passant highlight cleared");
         }
     }
     
@@ -737,13 +744,13 @@ class Board {
         
         // En passant highlight material - distinct bright red
         this.enPassantMaterial = new THREE.MeshStandardMaterial({
-            color: 0xff3333, // Brighter red for en passant
-            metalness: 0.3,
-            roughness: 0.4,
+            color: 0xd4837e, // Light red base for capture squares
+            metalness: 0.2,
+            roughness: 0.5,
             transparent: true,
-            opacity: 0.9,
+            opacity: 0.8,
             emissive: 0xff0000, // Red glow
-            emissiveIntensity: 0.7
+            emissiveIntensity: 0.6
         });
 
         // Create path highlight materials - from dark to light green
