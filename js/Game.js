@@ -14,6 +14,10 @@ class Game {
         this.capturedPieces = [];
         this.gameOver = false;
         
+        // Check detection properties
+        this.whiteKingInCheck = false;
+        this.blackKingInCheck = false;
+        
         // Move history for undo functionality
         this.moveHistory = [];
         
@@ -542,6 +546,24 @@ class Game {
     updateStatus() {
         const statusElement = document.getElementById('status');
         
+        // Check if any king is in check
+        this.whiteKingInCheck = this.isKingInCheck('white');
+        this.blackKingInCheck = this.isKingInCheck('black');
+        
+        // Remove previous check highlights
+        this.removeCheckHighlight('white');
+        this.removeCheckHighlight('black');
+        
+        // If white king is in check, highlight it
+        if (this.whiteKingInCheck) {
+            this.highlightKingInCheck('white');
+        }
+        
+        // If black king is in check, highlight it
+        if (this.blackKingInCheck) {
+            this.highlightKingInCheck('black');
+        }
+        
         // If it's computer's turn, show thinking message
         if (this.gameMode === 'computer' && this.currentPlayer === this.computerColor && !this.gameOver) {
             if (this.isComputerThinking) {
@@ -550,13 +572,35 @@ class Game {
             }
         }
         
-        statusElement.textContent = `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s turn`;
+        // Check for checkmate
+        if (this.currentPlayer === 'white' && this.isInCheckmate('white')) {
+            this.endGame('Checkmate! Black wins!');
+            return;
+        } else if (this.currentPlayer === 'black' && this.isInCheckmate('black')) {
+            this.endGame('Checkmate! White wins!');
+            return;
+        }
+        
+        // Check for stalemate
+        if (this.isInStalemate(this.currentPlayer)) {
+            this.endGame('Stalemate! The game is a draw.');
+            return;
+        }
+        
+        // Update status message
+        if (this.currentPlayer === 'white' && this.whiteKingInCheck) {
+            statusElement.textContent = "White's King is in CHECK!";
+            statusElement.style.color = '#e74c3c'; // Red for check
+        } else if (this.currentPlayer === 'black' && this.blackKingInCheck) {
+            statusElement.textContent = "Black's King is in CHECK!";
+            statusElement.style.color = '#e74c3c'; // Red for check
+        } else {
+            statusElement.textContent = `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s turn`;
+            statusElement.style.color = ''; // Reset color
+        }
         
         // Update captured pieces display
         this.updateCapturedPieces();
-        
-        // Check for game over conditions
-        this.checkGameOver();
         
         // If it's computer's turn, trigger AI move after a short delay
         // Only trigger computer move if game mode is computer
@@ -588,6 +632,269 @@ class Game {
         }
     }
     
+    // Check if a king is in check
+    isKingInCheck(kingColor) {
+        // Find the king of the specified color
+        const king = this.board.pieces.find(p => p.type === 'king' && p.color === kingColor);
+        if (!king) return false; // King not found (shouldn't happen in normal play)
+        
+        // Check if any opponent piece can capture the king
+        const opponentColor = kingColor === 'white' ? 'black' : 'white';
+        const opponentPieces = this.board.pieces.filter(p => p.color === opponentColor);
+        
+        // Check if any opponent piece can move to the king's position
+        for (const piece of opponentPieces) {
+            if (piece.isValidMove(king.position, this.board)) {
+                return true; // King is in check
+            }
+        }
+        
+        return false; // King is not in check
+    }
+    
+    // Check if a move would leave the player's king in check (illegal move)
+    wouldMoveLeaveKingInCheck(piece, newPosition) {
+        // Store original position and any potentially captured piece
+        const originalPosition = {...piece.position};
+        const capturedPiece = this.board.getPieceAt(newPosition);
+        
+        // Temporarily move the piece
+        const originalHasMoved = piece.hasMoved;
+        piece.position = {...newPosition};
+        
+        // If there was a piece at the new position, temporarily remove it from the board
+        // (but keep it in memory to restore later)
+        let capturedPieceIndex = -1;
+        if (capturedPiece) {
+            capturedPieceIndex = this.board.pieces.indexOf(capturedPiece);
+            if (capturedPieceIndex !== -1) {
+                this.board.pieces.splice(capturedPieceIndex, 1);
+            }
+        }
+        
+        // Check if the player's king is in check after this move
+        const kingInCheck = this.isKingInCheck(piece.color);
+        
+        // Restore the original state
+        piece.position = originalPosition;
+        piece.hasMoved = originalHasMoved;
+        
+        // Restore any captured piece
+        if (capturedPiece && capturedPieceIndex !== -1) {
+            this.board.pieces.splice(capturedPieceIndex, 0, capturedPiece);
+        }
+        
+        return kingInCheck;
+    }
+    
+    // Highlight the king when in check
+    highlightKingInCheck(kingColor) {
+        const king = this.board.pieces.find(p => p.type === 'king' && p.color === kingColor);
+        if (!king) return;
+        
+        // Apply a special visual effect to indicate check
+        if (king.mesh) {
+            // Create a red pulsing effect around the king
+            king.mesh.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material) {
+                    // Use red for check indication
+                    child.material.emissive = new THREE.Color(0xff0000);
+                    child.material.emissiveIntensity = 1.0;
+                    
+                    // Add pulsing animation
+                    if (!child.userData.checkAnimation) {
+                        child.userData.checkAnimation = true;
+                        
+                        // Pulsing glow effect
+                        gsap.to(child.material, {
+                            emissiveIntensity: 0.5,
+                            duration: 0.6,
+                            repeat: -1,
+                            yoyo: true,
+                            ease: "sine.inOut"
+                        });
+                    }
+                }
+            });
+            
+            // Add a danger indicator above the king
+            if (!king.mesh.userData.checkIndicator) {
+                // Create a red exclamation point using basic geometries instead of TextGeometry
+                const group = new THREE.Group();
+                
+                // Create the exclamation point dot (bottom part)
+                const dotGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                dot.position.y = 1.6;
+                group.add(dot);
+                
+                // Create the exclamation point line (top part)
+                const lineGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
+                const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                const line = new THREE.Mesh(lineGeometry, lineMaterial);
+                line.position.y = 2.0;
+                group.add(line);
+                
+                // Add a pulsing animation to the indicator
+                gsap.to(group.scale, {
+                    x: 1.2, y: 1.2, z: 1.2,
+                    duration: 0.6,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "sine.inOut"
+                });
+                
+                // Store reference to remove later
+                king.mesh.userData.checkIndicator = group;
+                king.mesh.add(group);
+            }
+        }
+        
+        // Update UI to show check status
+        const statusElement = document.getElementById('status');
+        if (statusElement) {
+            statusElement.textContent = `${kingColor.charAt(0).toUpperCase() + kingColor.slice(1)} King in CHECK! ${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s turn`;
+            statusElement.style.color = '#ff0000'; // Red to indicate danger
+        }
+    }
+    
+    // Remove check highlighting
+    removeCheckHighlight(kingColor) {
+        const king = this.board.pieces.find(p => p.type === 'king' && p.color === kingColor);
+        if (!king || !king.mesh) return;
+        
+        // Remove the check visual effects
+        king.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material && child.userData.checkAnimation) {
+                // Stop animations
+                gsap.killTweensOf(child.material);
+                
+                // Reset material properties
+                child.material.emissive = new THREE.Color(0x000000);
+                child.material.emissiveIntensity = 0;
+                child.userData.checkAnimation = false;
+            }
+        });
+        
+        // Remove the check indicator if it exists
+        if (king.mesh.userData.checkIndicator) {
+            king.mesh.remove(king.mesh.userData.checkIndicator);
+            if (king.mesh.userData.checkIndicator.geometry) {
+                king.mesh.userData.checkIndicator.geometry.dispose();
+            }
+            if (king.mesh.userData.checkIndicator.material) {
+                king.mesh.userData.checkIndicator.material.dispose();
+            }
+            king.mesh.userData.checkIndicator = null;
+        }
+        
+        // Reset UI status color if not in check anymore
+        const statusElement = document.getElementById('status');
+        if (statusElement && statusElement.style.color === 'rgb(255, 0, 0)') {
+            statusElement.style.color = '';
+        }
+    }
+    
+    // Check if player is in checkmate
+    isInCheckmate(kingColor) {
+        // First check if king is in check
+        if (!this.isKingInCheck(kingColor)) {
+            return false; // Can't be checkmate if not in check
+        }
+        
+        // Get all pieces of the current player
+        const playerPieces = this.board.pieces.filter(p => p.color === kingColor);
+        
+        // Try every possible move for each piece to see if check can be escaped
+        for (const piece of playerPieces) {
+            for (let x = 0; x < 8; x++) {
+                for (let y = 0; y < 8; y++) {
+                    const newPosition = { x, y };
+                    
+                    // Skip the current position
+                    if (piece.position.x === x && piece.position.y === y) continue;
+                    
+                    // Check if this is a valid move according to piece movement rules
+                    if (piece.isValidMove(newPosition, this.board)) {
+                        // Check if this move would get the king out of check
+                        if (!this.wouldMoveLeaveKingInCheck(piece, newPosition)) {
+                            return false; // Found a move that escapes check
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If we reach here, no move escapes check - it's checkmate
+        return true;
+    }
+    
+    // Check if it's a stalemate (not in check but no legal moves)
+    isInStalemate(kingColor) {
+        // If king is in check, it's not stalemate
+        if (this.isKingInCheck(kingColor)) {
+            return false;
+        }
+        
+        // Get all pieces of the current player
+        const playerPieces = this.board.pieces.filter(p => p.color === kingColor);
+        
+        // Try every possible move for each piece to see if there are any legal moves
+        for (const piece of playerPieces) {
+            for (let x = 0; x < 8; x++) {
+                for (let y = 0; y < 8; y++) {
+                    const newPosition = { x, y };
+                    
+                    // Skip the current position
+                    if (piece.position.x === x && piece.position.y === y) continue;
+                    
+                    // Check if this is a valid move according to piece movement rules
+                    if (piece.isValidMove(newPosition, this.board)) {
+                        // Check if this move wouldn't leave king in check
+                        if (!this.wouldMoveLeaveKingInCheck(piece, newPosition)) {
+                            return false; // Found a legal move
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If we reach here, no legal moves - it's stalemate
+        return true;
+    }
+    
+    checkGameOver() {
+        // Check for kings
+        const whiteKingExists = this.board.pieces.some(p => p.type === 'king' && p.color === 'white');
+        const blackKingExists = this.board.pieces.some(p => p.type === 'king' && p.color === 'black');
+        
+        if (!whiteKingExists) {
+            this.endGame('Black wins! White king is captured.');
+            return true;
+        } else if (!blackKingExists) {
+            this.endGame('White wins! Black king is captured.');
+            return true;
+        }
+        
+        // Check for checkmate
+        if (this.isInCheckmate('white')) {
+            this.endGame('Checkmate! Black wins!');
+            return true;
+        } else if (this.isInCheckmate('black')) {
+            this.endGame('Checkmate! White wins!');
+            return true;
+        }
+        
+        // Check for stalemate
+        if (this.isInStalemate(this.currentPlayer)) {
+            this.endGame('Stalemate! The game is a draw.');
+            return true;
+        }
+        
+        return false;
+    }
+    
     updateCapturedPieces() {
         const whiteCaptured = document.getElementById('white-captured');
         const blackCaptured = document.getElementById('black-captured');
@@ -603,20 +910,6 @@ class Game {
         // Display captures (in a real implementation, we'd use piece icons)
         whiteCaptured.innerHTML = capturedWhite.map(p => p.type).join(', ');
         blackCaptured.innerHTML = capturedBlack.map(p => p.type).join(', ');
-    }
-    
-    checkGameOver() {
-        // Check for kings
-        const whiteKingExists = this.board.pieces.some(p => p.type === 'king' && p.color === 'white');
-        const blackKingExists = this.board.pieces.some(p => p.type === 'king' && p.color === 'black');
-        
-        if (!whiteKingExists) {
-            this.endGame('Black wins! White king is captured.');
-        } else if (!blackKingExists) {
-            this.endGame('White wins! Black king is captured.');
-        }
-        
-        // TODO: Check for checkmate, stalemate, etc.
     }
     
     endGame(message) {

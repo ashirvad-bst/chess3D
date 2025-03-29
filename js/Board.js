@@ -646,6 +646,31 @@ class Board {
             
             // If clicking on a valid move position
             if (game.selectedPiece.isValidMove(clickedPosition, this)) {
+                // Check if the move would leave the player's king in check
+                if (game.wouldMoveLeaveKingInCheck(game.selectedPiece, clickedPosition)) {
+                    // Indicate invalid move that would leave king in check
+                    console.log("Invalid move: Would leave king in check");
+                    
+                    // Show visual feedback that the move is illegal
+                    this.showIllegalMoveIndicator(clickedPosition);
+                    
+                    // Update status with feedback
+                    const statusElement = document.getElementById('status');
+                    if (statusElement) {
+                        const prevText = statusElement.textContent;
+                        statusElement.textContent = "Illegal move: Would leave king in check!";
+                        statusElement.style.color = '#e74c3c'; // Red
+                        
+                        // Restore previous status after a short delay
+                        setTimeout(() => {
+                            statusElement.textContent = prevText;
+                            statusElement.style.color = '';
+                        }, 2000);
+                    }
+                    
+                    return;
+                }
+                
                 // Save the original position for move history
                 const originalPosition = { ...game.selectedPiece.position };
                 let capturedPiece = null;
@@ -707,6 +732,9 @@ class Board {
                 game.currentPlayer = game.currentPlayer === 'white' ? 'black' : 'white';
                 game.updateStatus();
                 
+                // Check for game over conditions (checkmate, stalemate)
+                game.checkGameOver();
+                
                 return;
             }
         }
@@ -730,8 +758,118 @@ class Board {
             game.selectedPiece = clickedPiece;
             clickedPiece.highlight();
             
-            // Show valid moves
-            this.highlightValidMoves(clickedPiece);
+            // Show valid moves that don't leave king in check
+            this.highlightValidMovesConsideringCheck(clickedPiece, game);
+        }
+    }
+    
+    // Show a visual indication that a move is illegal due to check
+    showIllegalMoveIndicator(position) {
+        const x = position.x;
+        const y = position.y;
+        
+        if (this.squares[x] && this.squares[x][y]) {
+            const square = this.squares[x][y];
+            
+            // Store original material
+            const originalMaterial = square.mesh.material;
+            
+            // Create flashing red material to indicate illegal move
+            const illegalMoveMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.6,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // Apply illegal move material
+            square.mesh.material = illegalMoveMaterial;
+            
+            // Animate the square to flash red
+            gsap.to(illegalMoveMaterial, {
+                opacity: 0.2,
+                duration: 0.3,
+                repeat: 3,
+                yoyo: true,
+                onComplete: () => {
+                    // Restore original material
+                    square.mesh.material = originalMaterial;
+                }
+            });
+        }
+    }
+    
+    // Highlight valid moves that won't leave king in check
+    highlightValidMovesConsideringCheck(piece, game) {
+        // Clear any existing highlights
+        this.resetHighlights();
+        
+        if (!piece) return;
+        
+        // Loop through all board positions and check if move is valid
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const newPos = { x, y };
+                
+                if (piece.isValidMove(newPos, this)) {
+                    // Check if this move would leave the king in check
+                    if (!game.wouldMoveLeaveKingInCheck(piece, newPos)) {
+                        const targetPiece = this.getPieceAt(newPos);
+                        if (targetPiece) {
+                            // Highlight the piece that can be captured
+                            targetPiece.highlightAsTarget();
+                            
+                            // Also highlight the square beneath the target piece 
+                            // with the captureHighlightMaterial
+                            if (this.squares[x] && this.squares[x][y]) {
+                                const square = this.squares[x][y];
+                                // Store original material before replacing
+                                square.mesh.userData.originalMaterial = square.mesh.material.clone();
+                                square.mesh.material = this.captureHighlightMaterial;
+                                
+                                // Add a subtle animation to make the highlight more noticeable
+                                if (!square.mesh.userData.pulseAnimation) {
+                                    square.mesh.userData.pulseAnimation = true;
+                                    square.mesh.userData.originalY = square.mesh.position.y;
+                                    
+                                    // Create a subtle hover animation on the square
+                                    gsap.to(square.mesh.position, {
+                                        y: 0.05, // Move slightly above the board
+                                        duration: 0.8,
+                                        repeat: -1,
+                                        yoyo: true,
+                                        ease: "sine.inOut"
+                                    });
+                                }
+                            }
+                        } else {
+                            // Highlight empty square as valid move
+                            if (this.squares[x] && this.squares[x][y]) {
+                                const square = this.squares[x][y];
+                                // Store original material before replacing
+                                square.mesh.userData.originalMaterial = square.mesh.material.clone();
+                                square.mesh.material = this.highlightMaterial;
+                                
+                                // Add subtle pulse animation to valid move squares
+                                if (!square.mesh.userData.pulseAnimation) {
+                                    square.mesh.userData.pulseAnimation = true;
+                                    
+                                    // Create a subtle opacity pulse for empty valid move squares
+                                    gsap.to(square.mesh.material, {
+                                        opacity: 0.6,
+                                        duration: 0.8,
+                                        repeat: -1,
+                                        yoyo: true,
+                                        ease: "sine.inOut"
+                                    });
+                                }
+                                this.highlightEnPassantSquare(newPos);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
