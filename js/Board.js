@@ -6,6 +6,8 @@ class Board {
         this.pieces = [];   // Array of all chess pieces
         this.validMoveSquares = []; // Track valid move positions
         this.pathCubes = []; // Track path highlight meshes
+        this.lastEnPassantPosition = null; // Track the position where en passant is possible
+        this.enPassantSquare = null; // Track the en passant highlighted square
         
         // Create materials first
         this.createMaterials();
@@ -349,6 +351,18 @@ class Board {
         if (index !== -1) {
             if (piece.mesh) {
                 this.scene.remove(piece.mesh);
+                
+                // Dispose of geometries and materials
+                piece.mesh.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(material => material.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
             }
             this.pieces.splice(index, 1);
         }
@@ -426,6 +440,9 @@ class Board {
     
     // Reset all square highlights
     resetHighlights() {
+        // Also clear any en passant highlight
+        this.clearEnPassantHighlight();
+        
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
                 const square = this.squares[x][y];
@@ -478,6 +495,63 @@ class Board {
     
     // Move a piece to a new position
     movePiece(piece, newPosition) {
+        // Store the previous en passant position
+        const previousEnPassantPosition = this.lastEnPassantPosition;
+        
+        // Clear the last en passant position
+        this.lastEnPassantPosition = null;
+        
+        // Remove the en passant highlight if it exists
+        this.clearEnPassantHighlight();
+        
+        // Reset en passant flags for all pawns
+        this.pieces.forEach(p => {
+            if (p.type === 'pawn') {
+                p.movedTwoSquares = false;
+            }
+        });
+
+        // Check if this is a pawn moving two squares (for en passant)
+        if (piece.type === 'pawn' && Math.abs(newPosition.y - piece.position.y) === 2) {
+            piece.movedTwoSquares = true;
+            
+            // Set the en passant position (where the capturing pawn would move to)
+            const direction = piece.color === 'white' ? -1 : 1; // Direction the pawn moved
+            this.lastEnPassantPosition = {
+                x: newPosition.x,
+                y: piece.position.y + direction
+            };
+            
+            // Highlight the en passant square in red
+            this.highlightEnPassantSquare();
+        }
+
+        // Check for en passant capture
+        if (piece.type === 'pawn' && 
+            piece.position.x !== newPosition.x && 
+            !this.getPieceAt(newPosition) &&
+            previousEnPassantPosition && 
+            newPosition.x === previousEnPassantPosition.x && 
+            newPosition.y === previousEnPassantPosition.y) {
+            
+            // This is a diagonal pawn move to an empty square - en passant
+            // The captured pawn is on the same file as the target square but on the same rank as the capturing pawn
+            const capturedPawnPosition = {
+                x: newPosition.x,   // Same file as the target square
+                y: piece.position.y  // Same rank as the capturing pawn
+            };
+            
+            const capturedPiece = this.getPieceAt(capturedPawnPosition);
+            
+            // If there's a pawn to capture, do it
+            if (capturedPiece && 
+                capturedPiece.type === 'pawn' && 
+                capturedPiece.color !== piece.color) {
+                console.log("En passant capture executed!", capturedPiece);
+                this.removePiece(capturedPiece);
+            }
+        }
+
         // Highlight the path before moving
         this.highlightPath(piece.position, newPosition);
         
@@ -492,6 +566,53 @@ class Board {
         setTimeout(() => {
             this.clearPathHighlights();
         }, 2000);
+    }
+    
+    // Highlight the en passant square in red
+    highlightEnPassantSquare() {
+        if (!this.lastEnPassantPosition) return;
+        
+        const x = this.lastEnPassantPosition.x;
+        const y = this.lastEnPassantPosition.y;
+        
+        if (this.squares[x] && this.squares[x][y]) {
+            const square = this.squares[x][y];
+            
+            // Store the original material
+            square.mesh.userData.originalEnPassantMaterial = square.mesh.material.clone();
+            
+            // Make sure we're using the en passant material (red) and not the highlight material (green)
+            square.mesh.material = this.enPassantMaterial;
+            
+            // Store reference to this square
+            this.enPassantSquare = square;
+            
+            // Add pulsing animation for better visibility
+            gsap.to(square.mesh.material, {
+                emissiveIntensity: 0.7, // Increased for better visibility
+                duration: 0.8,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+        }
+    }
+    
+    // Clear the en passant highlight
+    clearEnPassantHighlight() {
+        if (this.enPassantSquare) {
+            // Restore the original material
+            if (this.enPassantSquare.mesh.userData.originalEnPassantMaterial) {
+                // Stop any animations
+                gsap.killTweensOf(this.enPassantSquare.mesh.material);
+                
+                // Restore original material
+                this.enPassantSquare.mesh.material = this.enPassantSquare.mesh.userData.originalEnPassantMaterial;
+                this.enPassantSquare.mesh.userData.originalEnPassantMaterial = null;
+            }
+            
+            this.enPassantSquare = null;
+        }
     }
     
     // Handle square click event
@@ -612,6 +733,17 @@ class Board {
             opacity: 0.8,
             emissive: 0xff0000, // Red glow
             emissiveIntensity: 0.6
+        });
+        
+        // En passant highlight material - distinct bright red
+        this.enPassantMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff3333, // Brighter red for en passant
+            metalness: 0.3,
+            roughness: 0.4,
+            transparent: true,
+            opacity: 0.9,
+            emissive: 0xff0000, // Red glow
+            emissiveIntensity: 0.7
         });
 
         // Create path highlight materials - from dark to light green

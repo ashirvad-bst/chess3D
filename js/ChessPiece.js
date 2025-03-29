@@ -9,6 +9,9 @@ class ChessPiece {
         this.modelLoaded = false; // Flag to track if the model is loaded
         this.canBeCaptured = false; // Flag to track if this piece can be captured
         this.particleSystem = null; // For special effects on capturable pieces
+        
+        // Add en passant tracking
+        this.movedTwoSquares = false; // Track if pawn just moved two squares (for en passant)
     }
     
     // Load 3D model for the piece
@@ -543,12 +546,22 @@ class ChessPiece {
             return !board.getPieceAt(intermediatePos) && !targetPiece;
         }
         
-        // Capture: diagonal move
+        // Normal capture: diagonal move
         if (Math.abs(dx) === 1 && dy === direction) {
-            return targetPiece && targetPiece.color !== this.color;
+            if (targetPiece && targetPiece.color !== this.color) {
+                return true; // Normal diagonal capture
+            }
+            
+            // En passant capture - check if this move matches the lastEnPassantPosition
+            if (board.lastEnPassantPosition && 
+                newPosition.x === board.lastEnPassantPosition.x && 
+                newPosition.y === board.lastEnPassantPosition.y) {
+                
+                // En passant is a special move where the pawn moves diagonally to an empty square
+                // The captured pawn is on the same rank as the capturing pawn but on the target file
+                return !targetPiece; // Square must be empty for en passant
+            }
         }
-        
-        // TODO: En passant could be added in a future enhancement
         
         return false;
     }
