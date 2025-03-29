@@ -14,6 +14,9 @@ class Game {
         this.capturedPieces = [];
         this.gameOver = false;
         
+        // Move history for undo functionality
+        this.moveHistory = [];
+        
         // AI settings
         this.isComputerThinking = false;
         this.computerColor = 'black'; // Computer plays as black
@@ -134,6 +137,9 @@ class Game {
         
         // Back to menu button
         document.getElementById('back-to-menu').addEventListener('click', this.backToMenu.bind(this));
+        
+        // Undo button
+        document.getElementById('undo-button').addEventListener('click', this.undoLastMove.bind(this));
     }
     
     // Fix the raycaster intersection with proper checks
@@ -573,6 +579,12 @@ class Game {
             
             // Add visual indication of game mode
             modeDisplay.className = this.gameMode === 'friend' ? 'friend-mode' : 'computer-mode';
+            
+            // Show/hide undo button based on game mode
+            const undoButton = document.getElementById('undo-button');
+            if (undoButton) {
+                undoButton.style.display = this.gameMode === 'friend' ? 'inline-block' : 'none';
+            }
         }
     }
     
@@ -628,6 +640,7 @@ class Game {
         this.capturedPieces = [];
         this.gameOver = false;
         this.isComputerThinking = false;
+        this.moveHistory = [];
         
         // Reset the board
         this.board.pieces = [];
@@ -906,5 +919,115 @@ class Game {
         score += Math.random() * 0.5;
         
         return score;
+    }
+    
+    // Record a move to the history
+    recordMove(piece, fromPosition, toPosition, capturedPiece = null) {
+        this.moveHistory.push({
+            piece: {
+                type: piece.type,
+                color: piece.color,
+                hasMoved: piece.hasMoved,
+                position: { ...fromPosition }
+            },
+            fromPosition: { ...fromPosition },
+            toPosition: { ...toPosition },
+            capturedPiece: capturedPiece ? {
+                type: capturedPiece.type,
+                color: capturedPiece.color,
+                position: { ...capturedPiece.position },
+                hasMoved: capturedPiece.hasMoved
+            } : null,
+            previousPlayer: this.currentPlayer,
+            enPassantPosition: this.board.lastEnPassantPosition ? { ...this.board.lastEnPassantPosition } : null
+        });
+    }
+    
+    // Undo the last move
+    undoLastMove() {
+        if (this.gameOver) {
+            // If game was over, resume play
+            this.gameOver = false;
+        }
+        
+        // If it's the computer's turn, undo both the player's and computer's last moves
+        if (this.gameMode === 'computer' && this.currentPlayer === this.computerColor) {
+            this.undoSingleMove(); // Undo computer's move
+            this.undoSingleMove(); // Undo player's move
+            return;
+        }
+        
+        // For two-player mode, just undo the last move
+        this.undoSingleMove();
+    }
+    
+    // Undo a single move from history
+    undoSingleMove() {
+        if (this.moveHistory.length === 0) {
+            console.log("No moves to undo");
+            return;
+        }
+        
+        // Get the last move from history
+        const lastMove = this.moveHistory.pop();
+        
+        // Find the piece that moved
+        const movedPiece = this.board.getPieceAt(lastMove.toPosition);
+        
+        if (!movedPiece) {
+            console.error("Could not find piece to undo move");
+            return;
+        }
+        
+        // Reset the piece's state
+        movedPiece.hasMoved = lastMove.piece.hasMoved;
+        
+        // Move the piece back to its original position
+        this.board.movePiece(movedPiece, lastMove.fromPosition);
+        
+        // If a piece was captured, restore it
+        if (lastMove.capturedPiece) {
+            // Create and add back the captured piece
+            this.board.addPiece(
+                lastMove.capturedPiece.type,
+                lastMove.capturedPiece.color,
+                lastMove.capturedPiece.position
+            ).then(restoredPiece => {
+                if (restoredPiece) {
+                    restoredPiece.hasMoved = lastMove.capturedPiece.hasMoved;
+                    
+                    // Remove the piece from captured pieces list
+                    const capturedIndex = this.capturedPieces.findIndex(
+                        p => p.type === lastMove.capturedPiece.type && 
+                             p.color === lastMove.capturedPiece.color
+                    );
+                    
+                    if (capturedIndex !== -1) {
+                        this.capturedPieces.splice(capturedIndex, 1);
+                    }
+                    
+                    // Update display
+                    this.updateCapturedPieces();
+                }
+            });
+        }
+        
+        // Restore en passant state if present
+        this.board.lastEnPassantPosition = lastMove.enPassantPosition;
+        
+        // Switch back to previous player
+        this.currentPlayer = lastMove.previousPlayer;
+        
+        // Update the game display
+        this.updateStatus();
+        
+        // Reset selections
+        if (this.selectedPiece) {
+            this.selectedPiece.unhighlight();
+            this.selectedPiece = null;
+        }
+        
+        this.board.resetHighlights();
+        console.log("Move undone successfully");
     }
 }

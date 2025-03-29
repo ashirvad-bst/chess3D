@@ -112,7 +112,7 @@ h1 {
     padding: 10px;
 }
 
-#reset-button, #back-to-menu {
+#reset-button, #back-to-menu, #undo-button {
     background-color: #e74c3c;
     color: white;
     border: none;
@@ -124,7 +124,7 @@ h1 {
     margin-bottom: 10px;
 }
 
-#reset-button:hover, #back-to-menu:hover {
+#reset-button:hover, #back-to-menu:hover, #undo-button:hover {
     background-color: #c0392b;
 }
 
@@ -134,6 +134,14 @@ h1 {
 
 #back-to-menu:hover {
     background-color: #616a6b;
+}
+
+#undo-button {
+    background-color: #f39c12;
+}
+
+#undo-button:hover {
+    background-color: #d35400;
 }
 
 /* Responsive design for smaller screens */

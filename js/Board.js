@@ -646,9 +646,14 @@ class Board {
             
             // If clicking on a valid move position
             if (game.selectedPiece.isValidMove(clickedPosition, this)) {
+                // Save the original position for move history
+                const originalPosition = { ...game.selectedPiece.position };
+                let capturedPiece = null;
+                
                 // If there's a piece at the target, capture it
                 if (clickedPiece) {
                     if (clickedPiece.color !== game.selectedPiece.color) {
+                        capturedPiece = clickedPiece;
                         this.removePiece(clickedPiece);
                         game.capturedPieces.push(clickedPiece);
                     } else {
@@ -656,6 +661,32 @@ class Board {
                         return;
                     }
                 }
+                
+                // Check for en passant capture
+                let enPassantCapture = null;
+                if (game.selectedPiece.type === 'pawn' && 
+                    originalPosition.x !== clickedPosition.x && 
+                    !clickedPiece &&
+                    this.lastEnPassantPosition && 
+                    clickedPosition.x === this.lastEnPassantPosition.x && 
+                    clickedPosition.y === this.lastEnPassantPosition.y) {
+                    
+                    const capturedPawnPosition = {
+                        x: clickedPosition.x,
+                        y: originalPosition.y
+                    };
+                    
+                    enPassantCapture = this.getPieceAt(capturedPawnPosition);
+                    
+                    if (enPassantCapture) {
+                        this.removePiece(enPassantCapture);
+                        game.capturedPieces.push(enPassantCapture);
+                        capturedPiece = enPassantCapture; // Store for move history
+                    }
+                }
+                
+                // Record the move before making it
+                game.recordMove(game.selectedPiece, originalPosition, clickedPosition, capturedPiece);
                 
                 // Move the selected piece
                 this.movePiece(game.selectedPiece, clickedPosition);

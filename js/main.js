@@ -129,6 +129,20 @@ function initGame(gameMode) {
         if (whiteCaptured) whiteCaptured.innerHTML = '';
         if (blackCaptured) blackCaptured.innerHTML = '';
         
+        // Handle undo button visibility based on game mode
+        const undoButton = document.getElementById('undo-button');
+        if (undoButton) {
+            if (gameMode === 'computer') {
+                // Hide undo button when playing against computer
+                undoButton.style.display = 'none';
+                console.log('Hiding undo button for computer mode');
+            } else {
+                // Show undo button when playing with friend
+                undoButton.style.display = 'inline-block';
+                console.log('Showing undo button for friend mode');
+            }
+        }
+        
         // Create the game instance with the selected game mode
         // Using a slight delay to ensure DOM and previous cleanup is complete
         setTimeout(() => {
