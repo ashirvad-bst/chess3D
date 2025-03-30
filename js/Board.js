@@ -40,9 +40,22 @@ class Board {
         const border = new THREE.Mesh(borderGeometry, borderMaterial);
         border.position.y = -0.2;  // Below the base
         this.boardGroup.add(border);
+
+        // Add a black background layer just below the squares to create borders
+        const blackBorderGeometry = new THREE.BoxGeometry(8.1, 0.05, 8.1);
+        const blackBorderMaterial = new THREE.MeshStandardMaterial({
+            color: 0x000000,  // Black for the borders
+            roughness: 0.7
+        });
+        const blackBorderLayer = new THREE.Mesh(blackBorderGeometry, blackBorderMaterial);
+        blackBorderLayer.position.y = -0.03;  // Just below the squares but above the base
+        this.boardGroup.add(blackBorderLayer);
         
         // Create the squares (8x8)
         this.squares = new Array(8).fill().map(() => new Array(8));
+        
+        // Define square size with gap for borders
+        const squareSize = 0.95; // Slightly smaller than 1 to create gaps
         
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
@@ -50,7 +63,7 @@ class Board {
                 const isLight = (x + y) % 2 === 0;
                 const color = isLight ? 0xf5f5f5 : 0x222222;  // Light gray or much darker gray (changed from 0x757575)
                 
-                const geometry = new THREE.BoxGeometry(1, 0.1, 1);
+                const geometry = new THREE.BoxGeometry(squareSize, 0.1, squareSize);
                 const material = new THREE.MeshStandardMaterial({
                     color: color,
                     roughness: 0.5
